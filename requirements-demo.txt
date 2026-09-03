@@ -1,0 +1,10 @@
+# Dependencies for running the AML FHE demo server (archive + live mode).
+# For full pipeline (feature generation, training): pip install -e .
+
+# Live FHE execution
+concrete-ml==1.9.0
+numpy==1.26.4
+
+# Demo data rebuild (demo/scripts/build_demo_data.py)
+pandas
+pyarrow

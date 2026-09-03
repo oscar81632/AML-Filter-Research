@@ -1,0 +1,18 @@
+{
+  "rows": 5,
+  "threshold": 0.37,
+  "target_retention": 0.95,
+  "kept": 2,
+  "kept_share": 0.4,
+  "illicit_total": 2,
+  "illicit_kept": 2,
+  "illicit_retention": 1.0,
+  "features": [
+    "amount_paid_log",
+    "amount_received_log",
+    "sender_tx_count_prev",
+    "same_amount_cnt_prev"
+  ],
+  "id_offset": 0,
+  "note": "Small illustrative sample only; use scripts/filter_flag_table.py to generate real outputs."
+}

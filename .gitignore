@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+*.egg-info/
+
+# Local/session files
+.env
+.agents/
+.codex/
+.claude/
+.vscode/
+
+# Raw data and generated artifacts
+/data/
+/features/
+/artifacts/
+/runs/
+/fhe_logs/
+/temp-spark/
+/multiprocessing/
+*.parquet
+*.bin
+*.log
+
+# Large or sensitive model/key files
+*.joblib
+*.pkl
+*.pem
+*.key
+*.onnx
+
+# OS/editor
+.DS_Store
+

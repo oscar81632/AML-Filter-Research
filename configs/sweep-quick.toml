@@ -1,0 +1,21 @@
+# Local-feature config usable with `aml_fhe sweep run --strategy quick`.
+# The actual sweep search space is selected by the CLI strategy argument.
+
+[paths]
+feature_dir = "features"
+artifact_dir = "artifacts"
+log_dir = "fhe_logs"
+
+[features]
+train_output = "features/hi-small/train_features.parquet"
+valid_output = "features/hi-small/valid_features.parquet"
+test_output = "features/hi-small/test_features.parquet"
+
+[model]
+random_seed = 42
+
+[fhe]
+n_bits = 3
+compile_rows = 1024
+simulate_rows = 500
+mode = "simulate"

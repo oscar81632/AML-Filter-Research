@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aml-fhe-model"
+version = "0.1.0"
+description = "AML transaction feature generation, XGBoost training, and Concrete ML FHE evaluation."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "concrete-ml==1.9.0",
+  "igraph",
+  "joblib",
+  "kaggle",
+  "leidenalg",
+  "networkx",
+  "numpy==1.26.4",
+  "pandas",
+  "pyarrow",
+  "pyspark",
+  "scikit-learn",
+  "tomli>=2.0; python_version < '3.11'",
+  "xgboost",
+]
+
+[project.scripts]
+aml-fhe = "aml_fhe.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
