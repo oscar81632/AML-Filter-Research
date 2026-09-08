@@ -1,76 +1,155 @@
-# FHE-AML-ML
+# AML Filter Research
 
-Pipeline for AML (anti-money-laundering) transaction detection using Fully
-Homomorphic Encryption (FHE), so an AML model can score encrypted transactions
-without ever seeing plaintext data.
+This repository contains research code for a high-recall AML transaction
+prefilter and an FHE-compatible AML inference pipeline. The prefilter is designed
+to remove clearly low-risk transactions before they enter the expensive Fully
+Homomorphic Encryption (FHE) stage, while retaining nearly all illicit
+transactions for downstream encrypted inference.
 
-This archive also includes the AML plaintext prefilter research code used to
-reduce the number of transactions sent into the FHE stage. See
-[docs/prefilter-research-summary.md](docs/prefilter-research-summary.md) for the
-feature sets, recommended scripts, included files, excluded artifacts, and
-representative HI-Small/HI-Medium/HI-Large results.
+## Highlights
 
-End-to-end lifecycle:
+- **Problem:** FHE inference is privacy-preserving but expensive. A lightweight
+  plaintext prefilter can reduce the number of transactions that require FHE
+  evaluation.
+- **Goal:** Maximize transaction drop rate under a high illicit-retention
+  constraint. The main operating point is 95% illicit retention.
+- **Method:** Sender-side XGBoost prefiltering with causal transaction-history,
+  repeated-amount, bank-local, and time-decay features.
+- **Scale:** Experiments cover IBM AML HI-Small, HI-Medium, and HI-Large.
+- **Integration:** The repo includes an inference-flag output contract for
+  downstream PRISM/Bank-sim ingestion.
+
+## Representative Results
+
+At the 95% illicit-retention operating point:
+
+| Dataset | Feature set | Features | Actual retained | Dropped | ROC-AUC | PR-AUC |
+|---|---|---:|---:|---:|---:|---:|
+| HI-Small | compact repeated-amount + decay | 18 | 94.7% | 92.2% | 0.988 | 0.437 |
+| HI-Medium | compact repeated-amount + decay | 18 | 92.9% | 92.7% | 0.987 | 0.361 |
+| HI-Large | mainline decay12h | 18 | 94.8% | 92.5% | 0.989 | 0.475 |
+| HI-Large | receiver-bank role context | 30 | 96.4% | 91.2% | 0.990 | 0.520 |
+
+The full result notes, threshold discipline, feature discussion, and command
+examples are in
+[`docs/prefilter-research-summary.md`](docs/prefilter-research-summary.md).
+
+## Repository Layout
+
+```text
+configs/        FHE and model configuration files.
+docs/           Design notes, experiment summaries, usage, and integration contract.
+examples/       Public-safe sample inference-flag outputs.
+scripts/        Prefilter experiments, FHE proof scripts, and export utilities.
+src/            AML feature generation, model training, evaluation, and FHE modules.
+tests/          Unit tests for configs, sampling, thresholds, and export contract.
+```
+
+Raw AML datasets, generated feature matrices, model artifacts, FHE keys, and run
+logs are intentionally excluded from Git. They are either too large, regenerated
+by the documented commands, or potentially sensitive.
+
+## Install
+
+Python 3.10 is recommended.
+
+```bash
+git clone https://github.com/oscar81632/AML-Filter-Research.git
+cd AML-Filter-Research
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
+The dataset download command requires Kaggle credentials for the public IBM AML
+dataset.
+
+For development and tests:
+
+```bash
+pip install -e ".[dev]"
+python -m pytest tests/unit
+```
+
+## Quick Start: FHE Pipeline
+
+```bash
+make data-download
+make data-validate
+make stage
+make features
+make benchmark
+```
+
+Pipeline overview:
 
 ```text
 Kaggle IBM AML raw files
-  -> raw data staging (Spark)
-  -> graph-based feature generation (Spark + Leiden community detection)
-  -> train/valid/test feature parquets
-  -> plain XGBoost training/inference
-  -> Concrete ML XGBoost training/inference
-  -> FHE compile/simulate
-  -> metrics and model artifacts
+  -> raw data staging
+  -> graph-based feature generation
+  -> train/valid/test feature tables
+  -> plain XGBoost training and evaluation
+  -> Concrete ML XGBoost training and evaluation
+  -> FHE compile, simulate, and execute checks
 ```
 
-## Quick Start
+`make benchmark` trains a new model from scratch. It does not load or reuse an
+earlier model.
 
-**Requirements:** Python 3.10 and Java 11 (`concrete-ml` requires 3.10; PySpark 3.5.x requires Java 11).
+## Quick Start: Prefilter Experiments
+
+HI-Small or HI-Medium:
 
 ```bash
-bash setup.sh      # validates prereqs, creates .venv, installs deps, writes .env
-source .env        # loads PYSPARK_PYTHON and other env vars into your shell
+python scripts/filter_xgb.py \
+  data/HI-Small_Trans.csv \
+  data/HI-Small_Patterns.txt \
+  --feature-set compact_core_same_amount_spread_decay12h \
+  --metrics-json artifacts/feature_sets/hi_small_compact_decay12h_metrics.json
 ```
 
-Then, from a clean checkout:
+HI-Large memory-lean run:
 
 ```bash
-make data-download    # downloads the ~7.6 GB Kaggle dataset (credentials required)
-make data-validate    # checks the required raw files are present
-make stage            # Spark: raw CSVs -> staged parquet (~20-40 min)
-make features         # Spark: staged parquet -> graph features -> train/valid/test parquets (~2.5 hr, needs ~62 GB free RAM)
-make benchmark        # trains plain XGBoost + Concrete ML from scratch, evaluates, validates FHE correctness
+python scripts/filter_scale_sender_only.py \
+  data/HI-Large_Trans.csv \
+  data/HI-Large_Patterns.txt \
+  --feature-set mainline_decay12h \
+  --history-mode bank_local \
+  --metrics-json artifacts/feature_sets/hi_large_mainline_decay12h_metrics.json
 ```
 
-Budget about 3 hours end to end for a first run; staging and feature
-generation are unattended Spark jobs, not interactive steps.
+Inference-flag export:
 
-`make full` runs `data-validate -> stage -> features -> benchmark` in one
-shot, but still expects the raw data to already be downloaded
-(`make data-download` first).
+```bash
+python scripts/filter_flag_table.py data/HI-Small_Trans.csv \
+  --patterns data/HI-Small_Patterns.txt \
+  --retention 0.95 \
+  --output artifacts/flags/hi-small_flags.parquet \
+  --with-raw-keys
+```
 
-**`make benchmark` always trains a new model; it never loads or reuses an
-earlier one**, despite the name. Running inference against an
-already-trained model instead is a separate path, documented in
-[docs/usage.md](docs/usage.md#inference-on-an-already-trained-model).
-
-See [docs/usage.md](docs/usage.md) for the full command reference.
+The inference-flag format is documented in
+[`docs/inference-flag-table.md`](docs/inference-flag-table.md).
 
 ## Documentation
 
-- [Design](docs/design.md): why this pipeline exists and why it's shaped this way.
-- [Architecture](docs/architecture.md): package structure and command flow.
-- [Usage](docs/usage.md): environment setup, commands, configs, tests, and expected outputs.
-- [Experiments](docs/experiments.md): how the model was evaluated, key results, and implications.
+- [`docs/prefilter-research-summary.md`](docs/prefilter-research-summary.md):
+  main prefilter feature sets and results.
+- [`docs/inference-flag-table.md`](docs/inference-flag-table.md): output contract
+  for downstream ingestion.
+- [`docs/design.md`](docs/design.md): FHE pipeline motivation and design.
+- [`docs/architecture.md`](docs/architecture.md): source tree and command flow.
+- [`docs/usage.md`](docs/usage.md): full setup, commands, outputs, and schema
+  inspection.
+- [`docs/experiments.md`](docs/experiments.md): FHE model evaluation and
+  configuration trade-offs.
 
-## Results
+## Notes for Reviewers
 
-Recommended setting: **3-bit quantization, depth 5, 50 trees, seed 1**.
-
-Concrete ML (FHE-compatible) test F1: **0.7356** (precision 0.840, recall 0.655).
-FHE execute vs. clear match: **3,000/3,000** rows, zero mismatches.
-
-See [docs/experiments.md](docs/experiments.md) for methodology and full results.
-
-Raw CSV inputs and generated feature parquets are not committed. They are
-reproduced locally with the commands above.
+- The prefilter is evaluated as a high-recall screening stage, not as a final AML
+  decision system.
+- Thresholds for deployable results are selected on validation data and then
+  applied to test data.
+- Sample files under `examples/` illustrate the output contract only; they are
+  not benchmark outputs.

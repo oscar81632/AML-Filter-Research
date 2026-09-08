@@ -24,6 +24,11 @@ dependencies = [
   "xgboost",
 ]
 
+[project.optional-dependencies]
+dev = [
+  "pytest",
+]
+
 [project.scripts]
 aml-fhe = "aml_fhe.cli:main"
 

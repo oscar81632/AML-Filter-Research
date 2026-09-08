@@ -61,7 +61,7 @@ print('--- cell 3 start ---', flush=True)
 
 _cell_t0 = time.time()
 
-# TODO: Use https://docs.rapids.ai/api/cugraph/legacy/api_docs/api/cugraph/cugraph.leiden/ ?
+# GPU Leiden implementations can be considered for larger-scale deployments.
 
 print("Constructing Leiden communities")
 
